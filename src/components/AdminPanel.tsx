@@ -73,6 +73,11 @@ export default function AdminPanel({
   // Robux Balance Editor State
   const [customBalanceInput, setCustomBalanceInput] = useState("");
 
+  // Action Feedback and Dialog States
+  const [panelError, setPanelError] = useState<string | null>(null);
+  const [panelSuccess, setPanelSuccess] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   // Firestore Database State
   const [requests, setRequests] = useState<RobuxRequest[]>([]);
   const [notifications, setNotifications] = useState<AlertNotification[]>([]);
@@ -87,7 +92,9 @@ export default function AdminPanel({
       uid: "sim_admin_12345",
       isSimulated: true
     };
-    localStorage.setItem("simulated_admin", JSON.stringify(simUser));
+    try {
+      localStorage.setItem("simulated_admin", JSON.stringify(simUser));
+    } catch (e) {}
     onSimulatedLogin(simUser);
   };
 
@@ -216,26 +223,46 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Firestore update request status
+  // Firestore update request status
   const handleUpdateStatus = async (requestId: string, newStatus: "approved" | "rejected" | "completed") => {
+    setPanelError(null);
+    setPanelSuccess(null);
     try {
       const docRef = doc(db, "requests", requestId);
       await updateDoc(docRef, { status: newStatus });
+      setPanelSuccess(`Solicitud actualizada con éxito a: ${newStatus}`);
+      setTimeout(() => setPanelSuccess(null), 4000);
     } catch (error) {
       console.error("Failed to update status:", error);
-      alert("No se pudo actualizar el estado de la solicitud.");
+      setPanelError("No se pudo actualizar el estado de la solicitud.");
+      setTimeout(() => setPanelError(null), 4000);
       handleFirestoreError(error, OperationType.UPDATE, `requests/${requestId}`);
     }
   };
 
   // Delete request
   const handleDeleteRequest = async (requestId: string) => {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar este registro del historial?")) return;
+    setPanelError(null);
+    setPanelSuccess(null);
+    
+    if (deleteConfirmId !== requestId) {
+      setDeleteConfirmId(requestId);
+      // Automatically clear confirmation after 4 seconds
+      setTimeout(() => {
+        setDeleteConfirmId((prev) => (prev === requestId ? null : prev));
+      }, 4000);
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, "requests", requestId));
+      setDeleteConfirmId(null);
+      setPanelSuccess("Registro eliminado del historial correctamente.");
+      setTimeout(() => setPanelSuccess(null), 4000);
     } catch (error) {
       console.error("Failed to delete request:", error);
-      alert("No se pudo eliminar el registro.");
+      setPanelError("No se pudo eliminar el registro de la base de datos.");
+      setTimeout(() => setPanelError(null), 4000);
       handleFirestoreError(error, OperationType.DELETE, `requests/${requestId}`);
     }
   };
@@ -428,6 +455,22 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
         </div>
       </div>
 
+      {/* Inline Feedback Alerts */}
+      <div className="space-y-2">
+        {panelError && (
+          <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold rounded-lg flex items-center gap-2.5 shadow-sm">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{panelError}</span>
+          </div>
+        )}
+        {panelSuccess && (
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-lg flex items-center gap-2.5 shadow-sm">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{panelSuccess}</span>
+          </div>
+        )}
+      </div>
+
       {/* Metric summary grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stats-grid">
         <div className="bg-white dark:bg-roblox-panel-dark border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 shadow-sm flex items-center justify-between">
@@ -539,15 +582,11 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                    <AnimatePresence>
-                      {filteredRequests.map((req) => (
-                        <motion.tr
-                          key={req.id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/50 transition-colors"
-                        >
+                    {filteredRequests.map((req) => (
+                      <tr
+                        key={req.id}
+                        className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/50 transition-colors"
+                      >
                           {/* Destinatario Cell */}
                           <td className="p-3 flex items-center space-x-3">
                             <div className="w-9 h-9 rounded bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden border border-neutral-200 dark:border-neutral-700 flex-shrink-0">
@@ -638,16 +677,23 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
                               {/* Delete always available for maintenance */}
                               <button
                                 onClick={() => handleDeleteRequest(req.id)}
-                                className="p-1.5 text-neutral-400 hover:text-rose-500 rounded-md transition-all cursor-pointer"
-                                title="Eliminar Registro"
+                                className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                  deleteConfirmId === req.id
+                                    ? "bg-rose-500 hover:bg-rose-600 text-white animate-pulse"
+                                    : "text-neutral-400 hover:text-rose-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                }`}
+                                title={deleteConfirmId === req.id ? "Haz clic de nuevo para confirmar eliminación" : "Eliminar Registro"}
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                {deleteConfirmId === req.id ? (
+                                  <span>¡Confirmar!</span>
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
                               </button>
                             </div>
                           </td>
-                        </motion.tr>
-                      ))}
-                    </AnimatePresence>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

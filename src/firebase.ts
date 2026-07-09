@@ -1,5 +1,5 @@
-// Simulated Firebase layer using localStorage to make the app 100% free and fully functional
-// with zero cloud billing, zero configuration, and offline support.
+// Simulated Firebase layer with memory fallback to make the app 100% free, fully functional,
+// and resilient to localStorage SecurityErrors/QuotaExceededErrors in iframes.
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -14,6 +14,33 @@ export function subscribe(listener: Listener) {
 export function notifyChange() {
   listeners.forEach((l) => l());
 }
+
+// Memory-backed storage fallback in case localStorage is disabled/insecure in the sandbox iframe
+const memoryStorage: Record<string, string> = {};
+
+export const safeStorage = {
+  getItem(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return memoryStorage[key] || null;
+    }
+  },
+  setItem(key: string, value: string): void {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      memoryStorage[key] = value;
+    }
+  },
+  removeItem(key: string): void {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      delete memoryStorage[key];
+    }
+  }
+};
 
 // Mock structures to match Firebase Query and Doc Snapshots
 class MockDocSnapshot {
@@ -37,28 +64,31 @@ class MockQuerySnapshot {
 
 // Local Database Helpers
 function getLocalData(collectionName: string): any[] {
-  const raw = localStorage.getItem(`mock_db_${collectionName}`);
+  const raw = safeStorage.getItem(`mock_db_${collectionName}`);
   if (raw) {
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
     } catch (e) {
-      return [];
+      // Ignore parsing errors and reset to empty/seeded array below
     }
   }
   
-  // Seed initial data if empty
+  // Seed initial data if empty or corrupted
   if (collectionName === "notifications") {
     const initialNotifs = [
       {
         id: "notif_1",
         title: "Sistema Iniciado Localmente",
-        message: "¡Bienvenido! El sistema de envío está operando de forma 100% gratuita y segura en LocalStorage. No se requiere tarjeta de crédito ni cuentas externas.",
+        message: "¡Bienvenido! El sistema de envío está operando de forma 100% gratuita y segura en LocalStorage o en memoria. No se requiere tarjeta de crédito ni cuentas externas.",
         type: "info",
         createdAt: new Date().toISOString(),
         read: false
       }
     ];
-    localStorage.setItem(`mock_db_notifications`, JSON.stringify(initialNotifs));
+    safeStorage.setItem(`mock_db_notifications`, JSON.stringify(initialNotifs));
     return initialNotifs;
   }
   
@@ -77,7 +107,7 @@ function getLocalData(collectionName: string): any[] {
         type: "Direct Send"
       }
     ];
-    localStorage.setItem(`mock_db_requests`, JSON.stringify(initialRequests));
+    safeStorage.setItem(`mock_db_requests`, JSON.stringify(initialRequests));
     return initialRequests;
   }
   
@@ -85,7 +115,8 @@ function getLocalData(collectionName: string): any[] {
 }
 
 function saveLocalData(collectionName: string, data: any[]) {
-  localStorage.setItem(`mock_db_${collectionName}`, JSON.stringify(data));
+  const arrayData = Array.isArray(data) ? data : [];
+  safeStorage.setItem(`mock_db_${collectionName}`, JSON.stringify(arrayData));
   notifyChange();
 }
 
@@ -206,6 +237,7 @@ export async function updateDoc(docObj: any, data: any) {
   if (!collectionName || !id) return;
   
   const items = getLocalData(collectionName);
+  if (!Array.isArray(items)) return;
   const index = items.findIndex((item) => item.id === id);
   if (index !== -1) {
     items[index] = { ...items[index], ...data };
@@ -219,6 +251,7 @@ export async function deleteDoc(docObj: any) {
   if (!collectionName || !id) return;
   
   let items = getLocalData(collectionName);
+  if (!Array.isArray(items)) return;
   items = items.filter((item) => item.id !== id);
   saveLocalData(collectionName, items);
 }
@@ -236,8 +269,15 @@ let currentAuthListener: ((user: any) => void) | null = null;
 export function onAuthStateChanged(authInstance: any, callback: (user: any) => void) {
   currentAuthListener = callback;
   
-  const session = localStorage.getItem("mock_admin_session");
-  const userObj = session ? JSON.parse(session) : null;
+  const session = safeStorage.getItem("mock_admin_session");
+  let userObj = null;
+  if (session) {
+    try {
+      userObj = JSON.parse(session);
+    } catch (e) {
+      userObj = null;
+    }
+  }
   auth.currentUser = userObj;
   
   callback(userObj);
@@ -248,12 +288,24 @@ export function onAuthStateChanged(authInstance: any, callback: (user: any) => v
 }
 
 export async function signInWithEmailAndPassword(authInstance: any, email: string, password: string) {
-  const users = JSON.parse(localStorage.getItem("mock_admin_users") || "[]");
+  let users: any[] = [];
+  const rawUsers = safeStorage.getItem("mock_admin_users");
+  if (rawUsers) {
+    try {
+      const parsed = JSON.parse(rawUsers);
+      if (Array.isArray(parsed)) {
+        users = parsed;
+      }
+    } catch (e) {
+      users = [];
+    }
+  }
+  
   const found = users.find((u: any) => u.email === email && u.password === password);
   
   if (!found && email === "admin@bloxconnect.com" && password === "admin123") {
     const defaultUser = { uid: "admin_uid_123", email, displayName: "Admin BloxConnect" };
-    localStorage.setItem("mock_admin_session", JSON.stringify(defaultUser));
+    safeStorage.setItem("mock_admin_session", JSON.stringify(defaultUser));
     auth.currentUser = defaultUser;
     if (currentAuthListener) currentAuthListener(defaultUser);
     return { user: defaultUser };
@@ -266,7 +318,7 @@ export async function signInWithEmailAndPassword(authInstance: any, email: strin
   }
   
   const loggedUser = { uid: found.uid, email: found.email, displayName: found.displayName || "Admin" };
-  localStorage.setItem("mock_admin_session", JSON.stringify(loggedUser));
+  safeStorage.setItem("mock_admin_session", JSON.stringify(loggedUser));
   auth.currentUser = loggedUser;
   if (currentAuthListener) currentAuthListener(loggedUser);
   return { user: loggedUser };
@@ -279,7 +331,19 @@ export async function createUserWithEmailAndPassword(authInstance: any, email: s
     throw err;
   }
   
-  const users = JSON.parse(localStorage.getItem("mock_admin_users") || "[]");
+  let users: any[] = [];
+  const rawUsers = safeStorage.getItem("mock_admin_users");
+  if (rawUsers) {
+    try {
+      const parsed = JSON.parse(rawUsers);
+      if (Array.isArray(parsed)) {
+        users = parsed;
+      }
+    } catch (e) {
+      users = [];
+    }
+  }
+  
   const exists = users.some((u: any) => u.email === email);
   if (exists || email === "admin@bloxconnect.com") {
     const err = new Error("El correo electrónico ya está en uso.") as any;
@@ -289,17 +353,17 @@ export async function createUserWithEmailAndPassword(authInstance: any, email: s
   
   const newUser = { uid: `uid_${Math.random().toString(36).substring(2, 11)}`, email, password };
   users.push(newUser);
-  localStorage.setItem("mock_admin_users", JSON.stringify(users));
+  safeStorage.setItem("mock_admin_users", JSON.stringify(users));
   
   const sessionUser = { uid: newUser.uid, email: newUser.email, displayName: "Admin" };
-  localStorage.setItem("mock_admin_session", JSON.stringify(sessionUser));
+  safeStorage.setItem("mock_admin_session", JSON.stringify(sessionUser));
   auth.currentUser = sessionUser;
   if (currentAuthListener) currentAuthListener(sessionUser);
   return { user: sessionUser };
 }
 
 export async function signOut(authInstance: any) {
-  localStorage.removeItem("mock_admin_session");
+  safeStorage.removeItem("mock_admin_session");
   auth.currentUser = null;
   if (currentAuthListener) currentAuthListener(null);
 }

@@ -15,14 +15,18 @@ import UserSearch from "./components/UserSearch";
 import RobuxStore from "./components/RobuxStore";
 import AdminPanel from "./components/AdminPanel";
 import QRShareModal from "./components/QRShareModal";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { RobloxUser, RobuxRequest, AlertNotification } from "./types";
-import { motion, AnimatePresence } from "motion/react";
 import { ShieldAlert, Coins, HelpCircle, Heart, QrCode } from "lucide-react";
 
 export default function App() {
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem("theme");
-    return saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    try {
+      const saved = localStorage.getItem("theme");
+      return saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    } catch (e) {
+      return false;
+    }
   });
 
   const [activeTab, setActiveTab] = useState<"search" | "store" | "admin">("search");
@@ -33,7 +37,11 @@ export default function App() {
   const [alertText, setAlertText] = useState<{ message: string; type: "success" | "info" } | null>(null);
   const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
   const [robuxBalance, setRobuxBalance] = useState<string>(() => {
-    return localStorage.getItem("my_robux_balance") || "100000000000000000";
+    try {
+      return localStorage.getItem("my_robux_balance") || "100000000000000000";
+    } catch (e) {
+      return "100000000000000000";
+    }
   });
 
   const handleDeductRobux = (amount: number) => {
@@ -43,12 +51,16 @@ export default function App() {
         const subBig = BigInt(amount);
         const nextBig = currentBig - subBig;
         const nextStr = nextBig < 0n ? "0" : nextBig.toString();
-        localStorage.setItem("my_robux_balance", nextStr);
+        try {
+          localStorage.setItem("my_robux_balance", nextStr);
+        } catch (e) {}
         return nextStr;
       } catch (err) {
         const nextNum = Math.max(0, Number(prev) - amount);
         const nextStr = Math.floor(nextNum).toString();
-        localStorage.setItem("my_robux_balance", nextStr);
+        try {
+          localStorage.setItem("my_robux_balance", nextStr);
+        } catch (e) {}
         return nextStr;
       }
     });
@@ -58,26 +70,43 @@ export default function App() {
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
+      try {
+        localStorage.setItem("theme", "dark");
+      } catch (e) {}
     } else {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
+      try {
+        localStorage.setItem("theme", "light");
+      } catch (e) {}
     }
   }, [darkMode]);
 
   // Auth observer
   useEffect(() => {
-    const savedSimulated = localStorage.getItem("simulated_admin");
+    let savedSimulated = null;
+    try {
+      savedSimulated = localStorage.getItem("simulated_admin");
+    } catch (e) {}
     if (savedSimulated) {
-      setUser(JSON.parse(savedSimulated));
+      try {
+        setUser(JSON.parse(savedSimulated));
+      } catch (e) {}
     }
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        localStorage.removeItem("simulated_admin"); // Clear simulated user if a real one logs in
-      } else if (!localStorage.getItem("simulated_admin")) {
-        setUser(null);
+        try {
+          localStorage.removeItem("simulated_admin"); // Clear simulated user if a real one logs in
+        } catch (e) {}
+      } else {
+        let hasSim = false;
+        try {
+          hasSim = !!localStorage.getItem("simulated_admin");
+        } catch (e) {}
+        if (!hasSim) {
+          setUser(null);
+        }
       }
     });
     return () => unsubscribe();
@@ -116,9 +145,10 @@ export default function App() {
   };
 
   const handleSelectUserForRobux = (target: RobloxUser) => {
+    if (!target) return;
     setSelectedUser(target);
     setActiveTab("store");
-    setAlertText({ message: `Usuario @${target.username} seleccionado para mandar Robux`, type: "success" });
+    setAlertText({ message: `Usuario @${target.username || "Roblox"} seleccionado para mandar Robux`, type: "success" });
     setTimeout(() => setAlertText(null), 3500);
   };
 
@@ -142,52 +172,42 @@ export default function App() {
       />
 
       {/* Real-time Toast Notifications */}
-      <AnimatePresence>
+      <div className="fixed bottom-5 right-5 z-50 max-w-sm pointer-events-auto">
         {alertText && (
-          <div className="fixed bottom-5 right-5 z-50 max-w-sm">
-            <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 15, scale: 0.95 }}
-              className={`p-4 rounded-xl border shadow-xl flex items-center space-x-3 backdrop-blur-md ${
-                alertText.type === "success"
-                  ? "bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                  : "bg-roblox-blue/10 dark:bg-roblox-blue/20 border-roblox-blue/30 text-roblox-blue dark:text-blue-400"
+          <div
+            className={`p-4 rounded-xl border shadow-xl flex items-center space-x-3 backdrop-blur-md transition-all duration-300 transform translate-y-0 scale-100 ${
+              alertText.type === "success"
+                ? "bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                : "bg-roblox-blue/10 dark:bg-roblox-blue/20 border-roblox-blue/30 text-roblox-blue dark:text-blue-400"
+            }`}
+          >
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                alertText.type === "success" ? "bg-emerald-500 text-white" : "bg-roblox-blue text-white"
               }`}
             >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  alertText.type === "success" ? "bg-emerald-500 text-white" : "bg-roblox-blue text-white"
-                }`}
-              >
-                <Coins className="w-4 h-4 fill-current" />
-              </div>
-              <div className="text-xs font-bold leading-snug">{alertText.message}</div>
-            </motion.div>
+              <Coins className="w-4 h-4 fill-current" />
+            </div>
+            <div className="text-xs font-bold leading-snug">{alertText.message}</div>
           </div>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 relative">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.18, ease: "easeInOut" }}
-            className="w-full"
-          >
-            {activeTab === "search" && (
+        <ErrorBoundary>
+          {activeTab === "search" && (
+            <div className="w-full">
               <UserSearch
                 onSelectUser={handleSelectUserForRobux}
                 searchedUsers={searchedUsers}
                 setSearchedUsers={setSearchedUsers}
               />
-            )}
+            </div>
+          )}
 
-            {activeTab === "store" && (
+          {activeTab === "store" && (
+            <div className="w-full">
               <RobuxStore
                 selectedUser={selectedUser}
                 setSelectedUser={setSelectedUser}
@@ -197,9 +217,11 @@ export default function App() {
                 }}
                 robuxBalance={robuxBalance}
               />
-            )}
+            </div>
+          )}
 
-            {activeTab === "admin" && (
+          {activeTab === "admin" && (
+            <div className="w-full">
               <AdminPanel
                 user={user}
                 unreadCount={unreadCount}
@@ -207,12 +229,14 @@ export default function App() {
                 robuxBalance={robuxBalance}
                 onUpdateBalance={(newBalance) => {
                   setRobuxBalance(newBalance);
-                  localStorage.setItem("my_robux_balance", newBalance);
+                  try {
+                    localStorage.setItem("my_robux_balance", newBalance);
+                  } catch (e) {}
                 }}
               />
-            )}
-          </motion.div>
-        </AnimatePresence>
+            </div>
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* Roblox-Inspired Footer */}
@@ -220,8 +244,8 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-neutral-500 dark:text-neutral-400">
           
           <div className="flex items-center space-x-2">
-            <div className="w-6 h-6 bg-roblox-blue roblox-skew-logo flex items-center justify-center rounded-sm">
-              <div className="w-1.5 h-1.5 bg-white rounded-sm"></div>
+            <div className="w-6 h-6 bg-[#F1543F] roblox-skew-logo flex items-center justify-center rounded-sm">
+              <div className="w-1.5 h-1.5 bg-white dark:bg-roblox-panel-dark rounded-sm"></div>
             </div>
             <span className="font-bold tracking-wider text-neutral-800 dark:text-neutral-300">
               BLOXCONNECT © {new Date().getFullYear()}

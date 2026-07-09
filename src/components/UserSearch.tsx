@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Search, Sparkles, CheckCircle2, ArrowRight, Loader2, Award, UserCheck } from "lucide-react";
 import { RobloxUser } from "../types";
-import { motion } from "motion/react";
 
 interface UserSearchProps {
   onSelectUser: (user: RobloxUser) => void;
@@ -15,16 +14,15 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
   const [error, setError] = useState<string | null>(null);
   const [isFallback, setIsFallback] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const executeSearch = async (username: string) => {
+    if (!username.trim()) return;
 
     setLoading(true);
     setError(null);
     setIsFallback(false);
 
     try {
-      const res = await fetch(`/api/roblox/search?username=${encodeURIComponent(query.trim())}`);
+      const res = await fetch(`/api/roblox/search?username=${encodeURIComponent(username.trim())}`);
       if (!res.ok) {
         throw new Error("No se pudo obtener resultados. Intenta de nuevo.");
       }
@@ -42,19 +40,9 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.05
-      }
-    }
-  };
-
-  const cardVariants = {
-    hidden: { opacity: 0, y: 15 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100 } }
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSearch(query);
   };
 
   return (
@@ -95,16 +83,11 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
               className="px-6 py-3 bg-roblox-blue hover:bg-roblox-blue-hover text-white font-semibold rounded-lg shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 text-sm disabled:opacity-75 cursor-pointer"
             >
               {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Buscando...
-                </>
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <>
-                  Buscar
-                  <ArrowRight className="w-4 h-4" />
-                </>
+                <Search className="w-4 h-4" />
               )}
+              <span>{loading ? "Buscando..." : "Buscar"}</span>
             </button>
           </form>
         </div>
@@ -129,24 +112,19 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">
-              Resultados de Búsqueda ({searchedUsers.length})
+              <span>{`Resultados de Búsqueda (${searchedUsers.length})`}</span>
             </h3>
             <span className="text-xs text-neutral-400">Selecciona uno para mandar Robux</span>
           </div>
 
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="show"
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"
+          <div
+            className="grid grid-cols-1 min-[340px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4"
             id="search-results-grid"
           >
             {searchedUsers.map((user) => (
-              <motion.div
+              <div
                 key={user.id}
-                variants={cardVariants}
-                whileHover={{ y: -6, transition: { duration: 0.15 } }}
-                className="group bg-white dark:bg-roblox-panel-dark border border-neutral-200 dark:border-neutral-800 hover:border-roblox-blue dark:hover:border-roblox-blue rounded-xl p-3 flex flex-col justify-between items-center text-center shadow-sm hover:shadow-md transition-all relative overflow-hidden"
+                className="group bg-white dark:bg-roblox-panel-dark border border-neutral-200 dark:border-neutral-800 hover:border-roblox-blue dark:hover:border-roblox-blue rounded-xl p-3 flex flex-col justify-between items-center text-center shadow-sm hover:shadow-md transition-all duration-150 hover:-translate-y-1 relative overflow-hidden"
               >
                 {/* Roblox Verified Badge */}
                 {user.hasVerifiedBadge && (
@@ -165,7 +143,7 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
                     loading="lazy"
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-neutral-900/5 dark:bg-white/5 py-0.5 text-[8px] text-neutral-500 dark:text-neutral-400 font-mono">
-                    ID: {user.id}
+                    <span>{`ID: ${user.id}`}</span>
                   </div>
                 </div>
 
@@ -175,7 +153,7 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
                     {user.displayName}
                   </div>
                   <div className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate" title={`@${user.username}`}>
-                    @{user.username}
+                    <span>{`@${user.username}`}</span>
                   </div>
                 </div>
 
@@ -187,9 +165,9 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
                   <UserCheck className="w-3.5 h-3.5" />
                   Enviar Robux
                 </button>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       )}
 
@@ -202,7 +180,7 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
               Perfiles Sugeridos Populares
             </h3>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 min-[340px]:grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
             {[
               { id: 1, username: "Roblox", displayName: "Roblox", avatarUrl: "https://images.rbxcdn.com/3932cfeb24b95eb83e6ffb548b111532.png", hasVerifiedBadge: true },
               { id: 2, username: "Builderman", displayName: "builderman", avatarUrl: "https://images.rbxcdn.com/f11e96a40a83e6015b31df83df7d9b9d.png", hasVerifiedBadge: true },
@@ -213,10 +191,7 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
                 key={suggested.id}
                 onClick={() => {
                   setQuery(suggested.username);
-                  // Auto trigger search using the suggested user
-                  setTimeout(() => {
-                    document.getElementById("search-submit-btn")?.click();
-                  }, 100);
+                  executeSearch(suggested.username);
                 }}
                 className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 flex items-center space-x-3 hover:border-roblox-blue dark:hover:border-roblox-blue cursor-pointer transition-all duration-150"
               >
@@ -225,12 +200,14 @@ export default function UserSearch({ onSelectUser, searchedUsers, setSearchedUse
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 truncate flex items-center gap-1">
-                    {suggested.displayName}
+                    <span>{suggested.displayName}</span>
                     {suggested.hasVerifiedBadge && (
                       <CheckCircle2 className="w-3 h-3 fill-roblox-blue text-white inline flex-shrink-0" />
                     )}
                   </div>
-                  <div className="text-[10px] text-neutral-500 truncate">@{suggested.username}</div>
+                  <div className="text-[10px] text-neutral-500 truncate">
+                    <span>{`@${suggested.username}`}</span>
+                  </div>
                 </div>
               </div>
             ))}

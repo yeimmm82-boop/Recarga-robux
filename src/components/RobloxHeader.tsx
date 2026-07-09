@@ -1,6 +1,6 @@
 import React from "react";
 import { Moon, Sun, ShieldAlert, LogOut, ShoppingBag, Search, Bell, Coins } from "lucide-react";
-import { User } from "firebase/auth";
+import { User } from "../firebase";
 
 interface RobloxHeaderProps {
   darkMode: boolean;
@@ -19,6 +19,45 @@ function formatRobux(balanceStr: string): string {
     return bi.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   } catch (err) {
     return Number(balanceStr).toLocaleString("es-ES");
+  }
+}
+
+function formatRobuxCompact(balanceStr: string): string {
+  try {
+    const bi = BigInt(balanceStr);
+    if (bi >= 1_000_000_000_000_000_000n) {
+      const integerPart = bi / 1_000_000_000_000_000_000n;
+      const fractionPart = (bi % 1_000_000_000_000_000_000n) / 100_000_000_000_000_000n;
+      return fractionPart > 0n ? `${integerPart}.${fractionPart}E` : `${integerPart}E`;
+    }
+    if (bi >= 1_000_000_000_000_000n) {
+      const integerPart = bi / 1_000_000_000_000_000n;
+      const fractionPart = (bi % 1_000_000_000_000_000n) / 100_000_000_000_000n;
+      return fractionPart > 0n ? `${integerPart}.${fractionPart}Q` : `${integerPart}Q`;
+    }
+    if (bi >= 1_000_000_000_000n) {
+      const integerPart = bi / 1_000_000_000_000n;
+      const fractionPart = (bi % 1_000_000_000_000n) / 100_000_000_000n;
+      return fractionPart > 0n ? `${integerPart}.${fractionPart}T` : `${integerPart}T`;
+    }
+    if (bi >= 1_000_000_000n) {
+      const integerPart = bi / 1_000_000_000n;
+      const fractionPart = (bi % 1_000_000_000n) / 100_000_000n;
+      return fractionPart > 0n ? `${integerPart}.${fractionPart}B` : `${integerPart}B`;
+    }
+    if (bi >= 1_000_000n) {
+      const integerPart = bi / 1_000_000n;
+      const fractionPart = (bi % 1_000_000n) / 100_000n;
+      return fractionPart > 0n ? `${integerPart}.${fractionPart}M` : `${integerPart}M`;
+    }
+    if (bi >= 1_000n) {
+      const integerPart = bi / 1_000n;
+      const fractionPart = (bi % 1_000n) / 100n;
+      return fractionPart > 0n ? `${integerPart}.${fractionPart}K` : `${integerPart}K`;
+    }
+    return bi.toString();
+  } catch (err) {
+    return balanceStr;
   }
 }
 
@@ -41,13 +80,13 @@ export default function RobloxHeader({
           onClick={() => setActiveTab("search")}
           id="header-logo-container"
         >
-          <div className="relative w-8 h-8 bg-roblox-blue dark:bg-white roblox-skew-logo flex items-center justify-center rounded-sm shadow-md group-hover:scale-105 transition-transform duration-200">
+          <div className="relative w-8 h-8 bg-[#F1543F] roblox-skew-logo flex items-center justify-center rounded-sm shadow-md group-hover:scale-105 transition-transform duration-200">
             {/* The iconic inner square cut-out of Roblox logo */}
             <div className="w-2.5 h-2.5 bg-white dark:bg-roblox-panel-dark rounded-sm"></div>
           </div>
           <span className="font-bold text-xl tracking-wider font-sans text-neutral-900 dark:text-white flex items-center">
-            BLOX<span className="text-roblox-blue">CONNECT</span>
-            <span className="text-xs ml-1.5 px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 rounded font-normal text-neutral-500 dark:text-neutral-400">
+            BLOX<span className="text-roblox-blue hidden min-[400px]:inline">CONNECT</span>
+            <span className="text-xs ml-1.5 px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 rounded font-normal text-neutral-500 dark:text-neutral-400 hidden sm:inline">
               SIM
             </span>
           </span>
@@ -105,12 +144,13 @@ export default function RobloxHeader({
           {/* Robux Balance Indicator */}
           <div 
             onClick={() => setActiveTab("store")}
-            className="flex items-center space-x-1 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/5 dark:hover:bg-amber-500/10 border border-amber-500/30 dark:border-amber-500/20 rounded-lg transition-all cursor-pointer active:scale-95 group shadow-sm"
-            title="Tu Saldo de Robux"
+            className="flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1.5 bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/5 dark:hover:bg-amber-500/10 border border-amber-500/30 dark:border-amber-500/20 rounded-lg transition-all cursor-pointer active:scale-95 group shadow-sm"
+            title={`Tu Saldo de Robux: ${formatRobux(robuxBalance)}`}
           >
-            <Coins className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-black tracking-tight text-amber-600 dark:text-amber-400">
-              {formatRobux(robuxBalance)}
+            <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500 animate-pulse group-hover:scale-110 transition-transform" />
+            <span className="text-[11px] sm:text-xs font-black tracking-tight text-amber-600 dark:text-amber-400">
+              <span className="hidden md:inline">{formatRobux(robuxBalance)}</span>
+              <span className="inline md:hidden">{formatRobuxCompact(robuxBalance)}</span>
             </span>
           </div>
 
