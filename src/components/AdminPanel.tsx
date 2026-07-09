@@ -20,13 +20,11 @@ import {
   LogIn,
   Sparkles
 } from "lucide-react";
-import { auth, db } from "../firebase";
 import {
+  auth,
+  db,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  User
-} from "firebase/auth";
-import {
   collection,
   query,
   orderBy,
@@ -35,8 +33,9 @@ import {
   updateDoc,
   deleteDoc,
   getDocs,
-  limit
-} from "firebase/firestore";
+  limit,
+  User
+} from "../firebase";
 import { RobuxRequest, AlertNotification } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 

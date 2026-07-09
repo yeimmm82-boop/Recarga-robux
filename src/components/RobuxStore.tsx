@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { ShoppingCart, CheckCircle, Search, AlertCircle, Coins, Sparkles, UserCheck, Loader2 } from "lucide-react";
 import { RobloxUser, RobuxPackage, RobuxRequest } from "../types";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
-import { db } from "../firebase";
+import { collection, addDoc, db } from "../firebase";
 import { motion, AnimatePresence } from "motion/react";
 
 interface RobuxStoreProps {

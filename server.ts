@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
+import fs from "fs";
 
 async function startServer() {
   const app = express();
@@ -103,19 +103,45 @@ function generateMockUsers(username: string) {
     }
   });
 
-  // Vite integration middleware
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  // Vite integration middleware - Resilient fallback if build dist/ is missing
+  const distPath = fs.existsSync(path.join(process.cwd(), "dist", "index.html"))
+    ? path.join(process.cwd(), "dist")
+    : fs.existsSync(path.join(__dirname, "index.html"))
+    ? __dirname
+    : "";
+
+  if (process.env.NODE_ENV === "production") {
+    if (distPath) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    } else {
+      app.get("*", (req, res) => {
+        res.status(500).send("Production build assets (dist) not found. Please compile the applet first.");
+      });
+    }
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      console.warn("Vite failed to load in dev mode. Falling back to static build serving if available:", err);
+      if (distPath) {
+        app.use(express.static(distPath));
+        app.get("*", (req, res) => {
+          res.sendFile(path.join(distPath, "index.html"));
+        });
+      } else {
+        app.get("*", (req, res) => {
+          res.status(500).send("Vite not found and production build missing.");
+        });
+      }
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {

@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import {
+  auth,
+  db,
+  onAuthStateChanged,
+  signOut,
+  collection,
+  query,
+  where,
+  onSnapshot,
+  User
+} from "./firebase";
 import RobloxHeader from "./components/RobloxHeader";
 import UserSearch from "./components/UserSearch";
 import RobuxStore from "./components/RobuxStore";
 import AdminPanel from "./components/AdminPanel";
+import QRShareModal from "./components/QRShareModal";
 import { RobloxUser, RobuxRequest, AlertNotification } from "./types";
 import { motion, AnimatePresence } from "motion/react";
-import { ShieldAlert, Coins, HelpCircle, Heart } from "lucide-react";
+import { ShieldAlert, Coins, HelpCircle, Heart, QrCode } from "lucide-react";
 
 export default function App() {
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -22,6 +31,7 @@ export default function App() {
   const [user, setUser] = useState<any | null>(null);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [alertText, setAlertText] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
   const [robuxBalance, setRobuxBalance] = useState<string>(() => {
     return localStorage.getItem("my_robux_balance") || "100000000000000000";
   });
@@ -225,6 +235,13 @@ export default function App() {
               <HelpCircle className="w-3.5 h-3.5" />
               Ayuda y Soporte
             </span>
+            <button
+              onClick={() => setIsShareOpen(true)}
+              className="flex items-center gap-1 bg-roblox-blue hover:bg-roblox-blue-hover text-white font-bold px-2.5 py-1 rounded-sm shadow-sm transition-colors cursor-pointer text-[11px]"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              Compartir App
+            </button>
           </div>
 
           <div className="flex items-center gap-1 font-medium">
@@ -236,6 +253,8 @@ export default function App() {
           Aviso Legal: Esta aplicación es una herramienta de envío interactiva con fines educativos y de entretenimiento. No está afiliada ni patrocinada por Roblox Corporation. No transfiere Robux reales ni requiere credenciales de cuentas de Roblox.
         </div>
       </footer>
+
+      <QRShareModal isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} />
     </div>
   );
 }

@@ -1,24 +1,305 @@
-import { initializeApp } from "firebase/app";
-import { initializeFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-import firebaseConfig from "../firebase-applet-config.json";
+// Simulated Firebase layer using localStorage to make the app 100% free and fully functional
+// with zero cloud billing, zero configuration, and offline support.
 
-// Initialize Firebase App
-const app = initializeApp({
-  apiKey: firebaseConfig.apiKey,
-  authDomain: firebaseConfig.authDomain,
-  projectId: firebaseConfig.projectId,
-  storageBucket: firebaseConfig.storageBucket,
-  messagingSenderId: firebaseConfig.messagingSenderId,
-  appId: firebaseConfig.appId,
-});
+type Listener = () => void;
+const listeners = new Set<Listener>();
 
-// Initialize Firestore with custom databaseId if present, otherwise default
-export const db = initializeFirestore(
-  app,
-  {},
-  firebaseConfig.firestoreDatabaseId || "(default)"
-);
+export function subscribe(listener: Listener) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
-// Initialize Auth
-export const auth = getAuth(app);
+export function notifyChange() {
+  listeners.forEach((l) => l());
+}
+
+// Mock structures to match Firebase Query and Doc Snapshots
+class MockDocSnapshot {
+  constructor(public id: string, private _data: any) {}
+  data() {
+    return this._data;
+  }
+}
+
+class MockQuerySnapshot {
+  docs: MockDocSnapshot[];
+  size: number;
+  constructor(docs: MockDocSnapshot[]) {
+    this.docs = docs;
+    this.size = docs.length;
+  }
+  forEach(callback: (doc: MockDocSnapshot) => void) {
+    this.docs.forEach(callback);
+  }
+}
+
+// Local Database Helpers
+function getLocalData(collectionName: string): any[] {
+  const raw = localStorage.getItem(`mock_db_${collectionName}`);
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  // Seed initial data if empty
+  if (collectionName === "notifications") {
+    const initialNotifs = [
+      {
+        id: "notif_1",
+        title: "Sistema Iniciado Localmente",
+        message: "¡Bienvenido! El sistema de envío está operando de forma 100% gratuita y segura en LocalStorage. No se requiere tarjeta de crédito ni cuentas externas.",
+        type: "info",
+        createdAt: new Date().toISOString(),
+        read: false
+      }
+    ];
+    localStorage.setItem(`mock_db_notifications`, JSON.stringify(initialNotifs));
+    return initialNotifs;
+  }
+  
+  if (collectionName === "requests") {
+    const initialRequests = [
+      {
+        id: "req_demo_1",
+        userId: "48591234",
+        username: "Builderman",
+        displayName: "Builderman",
+        avatarUrl: "https://images.rbxcdn.com/f11e96a40a83e6015b31df83df7d9b9d.png",
+        robuxAmount: 1000000,
+        status: "completed" as const,
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+        userNote: "Envío inicial para probar el sistema de transferencias.",
+        type: "Direct Send"
+      }
+    ];
+    localStorage.setItem(`mock_db_requests`, JSON.stringify(initialRequests));
+    return initialRequests;
+  }
+  
+  return [];
+}
+
+function saveLocalData(collectionName: string, data: any[]) {
+  localStorage.setItem(`mock_db_${collectionName}`, JSON.stringify(data));
+  notifyChange();
+}
+
+// Firebase Exports
+export const db = { type: "firestore" };
+export const auth = {
+  currentUser: null as any
+};
+
+export type User = any;
+
+export function collection(dbInstance: any, name: string) {
+  return { type: "collection", name };
+}
+
+export function doc(dbInstance: any, collectionName: string, id?: string) {
+  return { type: "doc", collectionName, id };
+}
+
+export function query(col: any, ...constraints: any[]) {
+  return { type: "query", collectionName: col.name, constraints };
+}
+
+export function where(field: string, op: string, value: any) {
+  return { type: "where", field, op, value };
+}
+
+export function orderBy(field: string, direction: "asc" | "desc" = "asc") {
+  return { type: "orderBy", field, direction };
+}
+
+export function limit(num: number) {
+  return { type: "limit", limit: num };
+}
+
+export const Timestamp = {
+  now: () => new Date(),
+  fromDate: (date: Date) => date
+};
+
+export function onSnapshot(
+  queryObj: any,
+  next: (snapshot: MockQuerySnapshot) => void,
+  error?: (err: any) => void
+) {
+  const collectionName = queryObj.collectionName || queryObj.name;
+  
+  const trigger = () => {
+    try {
+      let items = getLocalData(collectionName);
+      
+      if (queryObj.constraints) {
+        for (const constraint of queryObj.constraints) {
+          if (constraint.type === "where") {
+            const { field, op, value } = constraint;
+            items = items.filter((item: any) => {
+              if (op === "==") return item[field] === value;
+              return true;
+            });
+          }
+        }
+        
+        const orderConstraint = queryObj.constraints.find((c: any) => c.type === "orderBy");
+        if (orderConstraint) {
+          const { field, direction } = orderConstraint;
+          items.sort((a: any, b: any) => {
+            const valA = a[field];
+            const valB = b[field];
+            if (valA < valB) return direction === "asc" ? -1 : 1;
+            if (valA > valB) return direction === "asc" ? 1 : -1;
+            return 0;
+          });
+        } else {
+          // Default order by createdAt desc
+          items.sort((a: any, b: any) => {
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            return dateB - dateA;
+          });
+        }
+        
+        const limitConstraint = queryObj.constraints.find((c: any) => c.type === "limit");
+        if (limitConstraint) {
+          items = items.slice(0, limitConstraint.limit);
+        }
+      } else {
+        items.sort((a: any, b: any) => {
+          const dateA = new Date(a.createdAt || 0).getTime();
+          const dateB = new Date(b.createdAt || 0).getTime();
+          return dateB - dateA;
+        });
+      }
+      
+      const snapshots = items.map((item: any) => new MockDocSnapshot(item.id, item));
+      next(new MockQuerySnapshot(snapshots));
+    } catch (err) {
+      if (error) error(err);
+    }
+  };
+
+  trigger();
+  return subscribe(trigger);
+}
+
+export async function addDoc(colObj: any, data: any) {
+  const collectionName = colObj.name;
+  const items = getLocalData(collectionName);
+  const newId = `${collectionName.slice(0, 3)}_${Math.random().toString(36).substring(2, 11)}`;
+  const newItem = { id: newId, ...data };
+  items.push(newItem);
+  saveLocalData(collectionName, items);
+  return { id: newId };
+}
+
+export async function updateDoc(docObj: any, data: any) {
+  const collectionName = docObj.collectionName;
+  const id = docObj.id;
+  if (!collectionName || !id) return;
+  
+  const items = getLocalData(collectionName);
+  const index = items.findIndex((item) => item.id === id);
+  if (index !== -1) {
+    items[index] = { ...items[index], ...data };
+    saveLocalData(collectionName, items);
+  }
+}
+
+export async function deleteDoc(docObj: any) {
+  const collectionName = docObj.collectionName;
+  const id = docObj.id;
+  if (!collectionName || !id) return;
+  
+  let items = getLocalData(collectionName);
+  items = items.filter((item) => item.id !== id);
+  saveLocalData(collectionName, items);
+}
+
+export async function getDocs(queryObj: any) {
+  const collectionName = queryObj.collectionName || queryObj.name;
+  const items = getLocalData(collectionName);
+  const snapshots = items.map((item: any) => new MockDocSnapshot(item.id, item));
+  return new MockQuerySnapshot(snapshots);
+}
+
+// Authentication Listeners and Mock Actions
+let currentAuthListener: ((user: any) => void) | null = null;
+
+export function onAuthStateChanged(authInstance: any, callback: (user: any) => void) {
+  currentAuthListener = callback;
+  
+  const session = localStorage.getItem("mock_admin_session");
+  const userObj = session ? JSON.parse(session) : null;
+  auth.currentUser = userObj;
+  
+  callback(userObj);
+  
+  return () => {
+    currentAuthListener = null;
+  };
+}
+
+export async function signInWithEmailAndPassword(authInstance: any, email: string, password: string) {
+  const users = JSON.parse(localStorage.getItem("mock_admin_users") || "[]");
+  const found = users.find((u: any) => u.email === email && u.password === password);
+  
+  if (!found && email === "admin@bloxconnect.com" && password === "admin123") {
+    const defaultUser = { uid: "admin_uid_123", email, displayName: "Admin BloxConnect" };
+    localStorage.setItem("mock_admin_session", JSON.stringify(defaultUser));
+    auth.currentUser = defaultUser;
+    if (currentAuthListener) currentAuthListener(defaultUser);
+    return { user: defaultUser };
+  }
+  
+  if (!found) {
+    const err = new Error("Credenciales incorrectas") as any;
+    err.code = "auth/invalid-credential";
+    throw err;
+  }
+  
+  const loggedUser = { uid: found.uid, email: found.email, displayName: found.displayName || "Admin" };
+  localStorage.setItem("mock_admin_session", JSON.stringify(loggedUser));
+  auth.currentUser = loggedUser;
+  if (currentAuthListener) currentAuthListener(loggedUser);
+  return { user: loggedUser };
+}
+
+export async function createUserWithEmailAndPassword(authInstance: any, email: string, password: string) {
+  if (password.length < 6) {
+    const err = new Error("La contraseña debe tener al menos 6 caracteres") as any;
+    err.code = "auth/weak-password";
+    throw err;
+  }
+  
+  const users = JSON.parse(localStorage.getItem("mock_admin_users") || "[]");
+  const exists = users.some((u: any) => u.email === email);
+  if (exists || email === "admin@bloxconnect.com") {
+    const err = new Error("El correo electrónico ya está en uso.") as any;
+    err.code = "auth/email-already-in-use";
+    throw err;
+  }
+  
+  const newUser = { uid: `uid_${Math.random().toString(36).substring(2, 11)}`, email, password };
+  users.push(newUser);
+  localStorage.setItem("mock_admin_users", JSON.stringify(users));
+  
+  const sessionUser = { uid: newUser.uid, email: newUser.email, displayName: "Admin" };
+  localStorage.setItem("mock_admin_session", JSON.stringify(sessionUser));
+  auth.currentUser = sessionUser;
+  if (currentAuthListener) currentAuthListener(sessionUser);
+  return { user: sessionUser };
+}
+
+export async function signOut(authInstance: any) {
+  localStorage.removeItem("mock_admin_session");
+  auth.currentUser = null;
+  if (currentAuthListener) currentAuthListener(null);
+}
