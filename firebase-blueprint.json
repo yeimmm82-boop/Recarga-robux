@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "Request": {
+      "title": "Request",
+      "description": "A simulation request for sending Robux to a Roblox user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The target Roblox user ID" },
+        "username": { "type": "string", "description": "The target Roblox username" },
+        "displayName": { "type": "string", "description": "The target Roblox display name" },
+        "avatarUrl": { "type": "string", "description": "The target Roblox avatar headshot URL" },
+        "robuxAmount": { "type": "integer", "description": "The amount of Robux requested/simulated" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "completed"], "description": "Status of the simulation request" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the request was made" },
+        "userNote": { "type": "string", "description": "Optional notes from the sender" },
+        "type": { "type": "string", "description": "The request category (e.g. donation, simulation_send)" }
+      },
+      "required": ["userId", "username", "displayName", "robuxAmount", "status", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or user alert.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Alert title" },
+        "message": { "type": "string", "description": "Alert body message" },
+        "type": { "type": "string", "enum": ["info", "success", "warning"], "description": "Category of notification" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the notification was generated" },
+        "read": { "type": "boolean", "description": "Whether the alert has been viewed" }
+      },
+      "required": ["title", "message", "type", "createdAt", "read"]
+    }
+  },
+  "firestore": {
+    "/requests/{requestId}": {
+      "schema": { "$ref": "#/entities/Request" },
+      "description": "Simulation requests collection."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "System notifications collection."
+    }
+  }
+}

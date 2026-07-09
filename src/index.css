@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-roblox-bg-dark: #191b1d;
+  --color-roblox-panel-dark: #2a2d30;
+  --color-roblox-input-dark: #393b3d;
+  --color-roblox-blue: #00a2ff;
+  --color-roblox-blue-hover: #0084d6;
+  --color-roblox-green: #00e676;
+  --color-roblox-gold: #f4c430;
+  --color-roblox-bg-light: #f2f4f5;
+  --color-roblox-panel-light: #ffffff;
+  --color-roblox-input-light: #e3e5e6;
+  
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Roblox Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #393b3d;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4e5052;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Custom styles */
+.roblox-skew-logo {
+  transform: rotate(-10deg);
+}
+
+.glow-blue {
+  box-shadow: 0 0 15px rgba(0, 162, 255, 0.3);
+}
+
+.glow-green {
+  box-shadow: 0 0 15px rgba(0, 230, 118, 0.3);
+}

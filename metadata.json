@@ -1,0 +1,6 @@
+{
+  "name": "BloxConnect",
+  "description": "Una aplicación web moderna con diseño Roblox para buscar usuarios con la API oficial y gestionar envíos de Robux guardando los datos en Cloud Firestore en tiempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
